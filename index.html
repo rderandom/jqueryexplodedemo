@@ -1,0 +1,435 @@
+<!doctype html>
+<html>
+	<head>
+	<meta charset="utf-8" />
+	<title>jQuery/CSS3 DEMO 02-2014</title>
+	<link href='http://fonts.googleapis.com/css?family=Yanone+Kaffeesatz' rel='stylesheet' type='text/css'>
+	<link href='http://fonts.googleapis.com/css?family=Press+Start+2P' rel='stylesheet' type='text/css'>
+	<link rel="icon" type="image/png" href="img/favicon.ico">
+	<link rel="stylesheet" type="text/css" href="styles.css">
+</head>
+<body>
+	<script src="js/jquery.js"></script>
+	<script src="js/jquery-ui.js"></script>
+	<script src="js/jquery.flipCounter.1.2.pack.js" type="text/javascript"></script>
+	<script src="js/jquery.easing.1.3.js" type="text/javascript"></script>
+	<script src="js/explode.js" type="text/javascript"></script>
+
+		
+	<div id="heading">jQuery/CSS3 DEMO 02-2014</div>
+	
+	<div id="points"><p>SCORE</p><div id="counter"><article>x1.5!!</article></div></div>
+
+	<div id="moves"><p>MOVES</p><div id="movesleft"><article></article></div></div>
+
+	<div id="grid"></div>
+	
+	<div id="end">YOUR SCORE: <dfn></dfn><br/><input type="text" placeholder="Enter your name" id="playername"/><br/> <button type="button" id="save">SAVE SCORE</button> </div>
+	<br/>
+	<div id="classification"><p>TOP 5</p>
+	
+			<table cellpadding="0" cellspacing="0" border="0" class="top5" id="example">
+				<thead>
+					<tr>
+						<th>name</th>
+						<th>points</th>
+					</tr>
+				</thead>
+				<tbody>
+					<tr class="id1">
+						<td></td>
+						<td></td>
+					</tr>
+			    	<tr class="id2">
+						<td></td>
+						<td></td>
+					</tr>
+					<tr class="id3">
+						<td></td>
+						<td></td>
+					</tr>
+					<tr class="id4">
+						<td></td>
+						<td></td>
+					</tr>
+					<tr class="id5">
+						<td></td>
+						<td></td>
+					</tr>
+				</tbody>
+			</table>
+
+	</div>
+
+	
+	<script>
+		$( document ).ready(function() {		
+		
+			var $tds = $('#classification tr').children('td');
+			console.log('$tds');
+			console.log($tds);
+			for(var i=0; i<$tds.length ; i++){
+				if(i%2===0){
+					$($tds[i]).html("n");
+				} else{
+					$($tds[i]).html("p");
+				}
+			}			
+				
+			/** Holds the square that is currently being dragged. **/
+			var squareDragged;
+			
+			/** Boolean to check if we just exploded. **/
+			var exploded = false;
+			
+			/** Holds the number of points. **/
+			var numberOfPoints=0;
+			
+			/** Holds the number of moves left. **/
+			var movesLeft=2;
+			
+			
+	
+			$("#counter").flipCounter("setNumber",numberOfPoints); 
+			$('#counter article').fadeOut(0);
+			$('div#movesleft article').html(movesLeft);	
+			
+		
+
+				
+			//////////////////////////////////////////////////////////////////////	
+			//initialize internal grid[] with rand Squares
+			var grid = new Array(COLS);
+			for(var i = 0 ; i < COLS ; i++){
+				grid[i] = new Array(TAM_GRID/COLS);	//grid is an Array of Arrays	
+				for(var j = 0 ; j < TAM_GRID/COLS ; j++){
+					var rand = Math.floor(Math.random()*NUM_OF_COLORS+1);//generates randoms btw 1 and 3
+					grid[i][j] = new Square( (i*COLS)+j , rand ); 
+				}
+			}
+
+			//////////////////////////////////////////////////////////////////////
+			//draw representation of grid & add drag and drop handlers to each Square
+			var $grid = $('div#grid'); //avoid calling $ inside the loop
+			for(var i = 0 ; i < TAM_GRID ; i++){
+				var color = "";
+				var row = indexToRow(i,COLS);
+				var column =  indexToCol(i,COLS);
+				var squareBgColor = getBackgroundColor(row, i);
+
+				//draw grid divs//////////////////////////////////////////////////////////////////////
+				$grid.append('<div class="square '+getClassFromColor[ grid[row][column].color ]()+'" id="'+i+'"></div>'); 		
+
+				$('.square#'+i).draggable({
+					/** o n      d r a g    ---> **/
+					start: function( event, ui ) {
+						//store which square is being dragged -----TODO: move this to drop event
+						var indexDragged = $(event.target).attr('id');
+						var x = indexToRow(indexDragged,COLS);
+						var y =  indexToCol(indexDragged,COLS);
+						squareDragged = grid[x][y];
+					},   revert: true
+				});
+					
+				$('.square#'+i).droppable({
+					/** o n      d r o p    ---> **/
+					drop: function( event, ui ) {
+						//here goes the grid.color interchange//////////////////////////////////////////////////////////////////////
+						var indexDropped = $(event.target).attr('id');
+						
+						var row = indexToRow(indexDropped,COLS);
+						var col = indexToCol(indexDropped,COLS);
+						
+						var indexDragged = squareDragged.index;
+	
+						var classDropped = getClassFromColor[ grid[row][col].color ]();
+						var classDragged = getClassFromColor[ squareDragged.color ]();
+												
+						//update view of grid[] after interchange////////////////////////////////////////////////////////////////////// 
+						$('div#'+squareDragged.index).removeClass(classDragged) 		
+													 .addClass(classDropped);   		
+								 
+						$(this).removeClass(classDropped) 							
+								.addClass(classDragged);     						
+						
+						//update internal state of grid[] interchange//////////////////////////////////////////////////////////////////////
+						var rowDragged = indexToRow(indexDragged,COLS);
+						var columnDragged =  indexToCol(indexDragged,COLS);
+						var colorAux = grid[rowDragged][columnDragged].color;
+						grid[rowDragged][columnDragged].color = grid[row][col].color;
+						grid[row][col].color = colorAux;
+						
+						//call to check and explode until no explodes are found, then check and set moves left
+						endOfMove();
+					}
+				});
+
+			}//eof draw representation of grid & add drag and drop handlers to each Square
+			
+			//do the first checkAndExplode
+			var interval = setInterval(function() { 
+							exploded=checkAndExplode(); 
+							if(!exploded) clearInterval(interval);
+			}, 600);
+
+
+
+			
+			
+			
+			
+			
+			
+			
+			//////////////////////////////////////////////////////////////////////
+			// --endOfMove: ....
+			function endOfMove(){			
+				var interval = setInterval(function() { 
+					exploded=checkAndExplode(); 
+					if(!exploded){
+						clearInterval(interval); //stop calling this logic
+						$('div#movesleft article').html(movesLeft);	//refresh movesleft div
+						checkForGameOver(movesLeft);
+					}
+				}, 600);				
+				movesLeft--;
+			}
+
+			//////////////////////////////////////////////////////////////////////
+			// --checkForGameOver: check moves and show end restart message
+			function checkForGameOver(movesLeft){	
+				if(movesLeft==0){
+					blockGrid();
+					$('div#end').fadeIn(300).children('dfn').html(numberOfPoints);
+					document.getElementById("save").addEventListener ("click", function(){
+							saveScore(numberOfPoints, $('#playername').val());
+							showRestartMesssage();
+						}, 
+						false
+					);
+				}
+			}	
+
+			
+			//////////////////////////////////////////////////////////////////////
+			// --blockGrid: disable draggable in all squares in the end of game 				
+			function blockGrid(){
+				/*var $squares = $("div[class^='square']");
+				console.log($squares);
+				$.each($squares, function(index, value){
+					console.log(this);
+					this.draggable('disable');
+				});*/
+				
+				for(var i = 0; i < TAM_GRID; i++){
+					$('div#'+i).draggable('disable');
+				}
+			}
+
+
+			//////////////////////////////////////////////////////////////////////
+			// --saveScore: call NewScoreController via AJAX
+			function saveScore(numberOfPoints, playername) {
+				$.ajax({
+					url: 'NewScoreController.php',
+					type: "POST",
+					data: { points : numberOfPoints, name : playername },
+					dataType: "text",
+					success: function(data) {
+						//console.log("hey");
+					},
+					complete: function() {
+						//console.log("ho");
+						// updateTopFive();
+					}
+				});
+			 }
+				
+			//////////////////////////////////////////////////////////////////////
+			// --showRestartMesssage: .... 
+			function showRestartMesssage(){
+				$('div#end').html('<br/> TRY AGAIN? <br/> <button type="button" id="restart">YES</button>');
+				document.getElementById("restart").addEventListener ("click", restartGame, false);
+
+			}
+						
+			//////////////////////////////////////////////////////////////////////
+			// --restartGame: restart game 				
+			function restartGame(){
+				squareDragged=undefined;
+				exploded = false;
+				numberOfPoints=0;
+				movesLeft=STARTING_NUM_OF_MOVES;
+				$('div#movesleft article').html(movesLeft);	//refresh movesleft div
+
+				$('div#end').fadeOut(300);
+				var listOfSquares = getArrayOfSquares(grid)
+				explode( listOfSquares, 0);
+				
+				for(var i = 0; i < TAM_GRID; i++){
+					 $('div#'+i).draggable('enable');
+				}
+				
+			}
+			
+			//////////////////////////////////////////////////////////////////////
+			// --getArrayOfSquares: get array of squares from array of arrays 
+			function getArrayOfSquares(grid){
+				var listOfSquares = new Array();
+				for (var i=0; i<grid.length ; i++){
+					for (var j=0; j<grid[i].length ; j++){
+						listOfSquares.push(grid[i][j]);
+					}
+				}
+				return listOfSquares;
+			}			
+							
+			//////////////////////////////////////////////////////////////////////
+			// --checkAndExplode: traverse each row and column of the grid searching
+			// three or more items of the same class in sequential squares
+			function checkAndExplode(){
+				var explodeFound=false;
+				var multiplier=1.0;
+
+				for(var i = 0; i < COLS && !explodeFound; i++){ //rows
+					var itemsTraversed = 1;
+					for (var j=0; (j < COLS) && (itemsTraversed < COLS) && !explodeFound; j++){ //cols
+						var isSameColor = true;
+						var gridSameColor = new Array();
+						gridSameColor.push(grid[i][j]);
+	
+						for (var x=j; (x < (COLS-1)) && isSameColor && !explodeFound; x++){ //cols
+							if(grid[i][x].color!=grid[i][x+1].color){
+								isSameColor = false;
+							} else {
+								gridSameColor.push(grid[i][x+1])
+							}
+							itemsTraversed++;
+						}
+						if(gridSameColor.length>3){
+							multiplier=1.5;
+							$('#counter article').fadeIn('fast');
+							$('#counter article').effect('puff', 500);
+						}
+						if(gridSameColor.length>2){
+							explode(gridSameColor, multiplier);
+							explodeFound=true;
+						}
+						j+=(itemsTraversed-2);// one to compensate the auto increment of j 	
+					}
+				}
+				
+				if(explodeFound){
+					return true;
+				}
+				                                                                                          
+				////////////////////////////////////////////////////////////////////// vert:
+				for(var i = 0; i < COLS && !explodeFound; i++){ //rows
+					itemsTraversed = 1;
+					for (var j=0; (j < COLS) && (itemsTraversed < COLS) && !explodeFound; j++){ //cols
+						var isSameColor = true;
+						var gridSameColorVert = new Array();
+						gridSameColorVert.push(grid[j][i]);
+						//console.log("new array with one element:");
+						//console.log(gridSameColorVert); //O___O
+						for (var x=j; (x < (COLS-1)) && isSameColor && !explodeFound; x++){ //cols
+							//console.log("vamos a comparar x["+i+"]["+x+"] con x["+i+"]["+(x+1)+"]" );
+							//console.log("color a: " + grid[i][x].color);
+							//console.log("color b: " + grid[i][x+1].color);
+							
+							if(grid[x][i].color!=grid[x+1][i].color){
+								isSameColor = false;
+							} else {
+								gridSameColorVert.push(grid[x+1][i])
+							}
+							itemsTraversed++;
+						}
+						
+						if(gridSameColorVert.length>3){
+						     multiplier=1.5;
+							 $('#counter article').fadeIn('fast');
+							 $('#counter article').fadeOut('slow');
+						}
+						
+						if(gridSameColorVert.length>2){							
+							explode(gridSameColorVert,multiplier);
+							explodeFound=true;
+						}
+						j+=(itemsTraversed-2);// one is to compensate the auto increment of j 	
+					}
+				}
+				if(explodeFound){
+					return true;
+				}				
+				return false;
+			}// end of checkAndExplode 
+					
+			//////////////////////////////////////////////////////////////////////
+			// --explode: make a grid of squares fade out, generate random squares in those
+			//positions, then fade in.
+			function explode(grid, multiplier){
+				var $squares = new Array();
+				for(var i = 0 ; i < grid.length ; i++){
+					var squareId = grid[i].index;
+					var $square = $('div#'+squareId);
+					$square.animate({'opacity': 0.0},{duration:300});
+					$squares.push($square);
+				}	
+				setTimeout(function(){return newRandomGrid(grid, $squares);},300);
+				
+				
+				for(var j = 0 ; j < grid.length ; j++){
+					$squares[j].animate({top:"-=250"},{duration:1});//return to normal
+				//	$squares[j].css({'opacity': 1});
+					//$squares[j].animate("slide",{direction:"down",duration:300});
+					$squares[j].animate({'opacity': 1,top:"+=250"},{duration:350});//return to normal
+
+				}
+				numberOfPoints+= (grid.length*2*multiplier);				
+				$("#counter").flipCounter("setNumber",numberOfPoints); 	
+			}
+			
+			//////////////////////////////////////////////////////////////////////
+			// --newRandomGrid: generates random squares in the grid passed
+			//  as parameter and draws its representation in the corresponding divs
+			function newRandomGrid(grid, $squares){
+				for(var i = 0 ; i < grid.length ; i++){
+					var prevClass = getClassFromColor[ grid[i].color ]();
+					var newColor = Math.floor(Math.random()*NUM_OF_COLORS+1);//generates randoms btw 1 and 3
+					grid[i].color=newColor;
+					var newClass = getClassFromColor[ newColor ]();
+					$squares[i].removeClass(prevClass) 							
+						       .addClass(newClass);     	
+				}
+
+			}
+
+
+			
+
+
+			
+			
+			
+			
+//			var bar = $("div[class^='square']");
+
+			//var containmentTop = $("#stop-top").index().top;
+			//var containmentBottom = $("#stop-bottom").index().top;
+			//$('#bar').draggable({axis: 'y', containment : [0,containmentTop,0,containmentBottom] });
+			//var izquierda = $('.square#0').index().left;
+			//var arriba = $('.square#0').index().top;
+			//var derecha = izquierda + SQ_WIDTH;
+			//var abajo = arriba + SQ_WIDTH;
+			//console.log("izquierda: " + izquierda);
+			//console.log("arriba: " + arriba);
+			//console.log("derecha: " + derecha);
+			//console.log("abajo: " + abajo);
+//			$('.square#0').draggable({containment: [izquierda,arriba,derecha,abajo], revert: true});
+
+
+			
+		});
+	</script>
+</body>
+</html>
